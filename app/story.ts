@@ -22,6 +22,18 @@ export function photoSlot(template: Template) {
   return { x, y, w, h };
 }
 
+let recentCover: { src: string; image: Promise<HTMLImageElement> } | undefined;
+
+function decodeCover(src: string) {
+  if (recentCover?.src === src) return recentCover.image;
+  const image = decodeImage(src).catch((error) => {
+    if (recentCover?.image === image) recentCover = undefined;
+    throw error;
+  });
+  recentCover = { src, image };
+  return image;
+}
+
 export async function decodeImage(src: string) {
   const image = new Image();
   image.src = src;
@@ -53,7 +65,7 @@ function drawText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
   lines.forEach((item, index) => ctx.fillText(item, x, y + index * (size + 12), width));
 }
 
-export async function renderStory(canvas: HTMLCanvasElement, draft: Draft, hideArtwork = false) {
+export async function renderStory(canvas: HTMLCanvasElement, draft: Draft) {
   const mood = draft.font?.split('-')[1] as 'formal' | 'hand' | 'vintage' | undefined;
   const fontFor = (text: string) => {
     const language = /^[^\p{L}]*\p{Script=Arabic}/u.test(text) ? 'ar' : 'en';
@@ -65,7 +77,7 @@ export async function renderStory(canvas: HTMLCanvasElement, draft: Draft, hideA
   const captionFont = fontFor(draft.caption);
   const [photo, cover] = await Promise.all([
     decodeImage(draft.image ?? '/assets/sample.webp'),
-    draft.cover ? decodeImage(draft.cover) : null,
+    draft.cover ? decodeCover(draft.cover) : null,
     document.fonts.load('700 56px ' + titleFont, draft.title),
     document.fonts.load('400 40px ' + artistFont, draft.artist),
     document.fonts.load('700 46px ' + captionFont, draft.caption),
@@ -149,24 +161,22 @@ export async function renderStory(canvas: HTMLCanvasElement, draft: Draft, hideA
     ctx.roundRect(72, artY - 26, 936, 260, 32);
     ctx.fill();
   }
-  if (!hideArtwork) {
-    ctx.fillStyle = '#D2B8FF';
-    ctx.fillRect(artX, artY, artSize, artSize);
-    if (cover) {
-      const ratio = artSize / Math.max(cover.naturalWidth, cover.naturalHeight);
-      const width = cover.naturalWidth * ratio;
-      const height = cover.naturalHeight * ratio;
-      ctx.drawImage(cover, artX + (artSize - width) / 2, artY + (artSize - height) / 2, width, height);
-    } else {
-      ctx.fillStyle = '#211827';
-      ctx.beginPath();
-      ctx.arc(artX + artSize / 2, artY + artSize / 2, artSize * .29, 0, 2 * Math.PI);
-      ctx.fill();
-      ctx.fillStyle = '#FFABC4';
-      ctx.beginPath();
-      ctx.arc(artX + artSize / 2, artY + artSize / 2, artSize * .09, 0, 2 * Math.PI);
-      ctx.fill();
-    }
+  ctx.fillStyle = '#D2B8FF';
+  ctx.fillRect(artX, artY, artSize, artSize);
+  if (cover) {
+    const ratio = artSize / Math.max(cover.naturalWidth, cover.naturalHeight);
+    const width = cover.naturalWidth * ratio;
+    const height = cover.naturalHeight * ratio;
+    ctx.drawImage(cover, artX + (artSize - width) / 2, artY + (artSize - height) / 2, width, height);
+  } else {
+    ctx.fillStyle = '#211827';
+    ctx.beginPath();
+    ctx.arc(artX + artSize / 2, artY + artSize / 2, artSize * .29, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.fillStyle = '#FFABC4';
+    ctx.beginPath();
+    ctx.arc(artX + artSize / 2, artY + artSize / 2, artSize * .09, 0, 2 * Math.PI);
+    ctx.fill();
   }
 
   const vinyl = draft.template === 'vinyl';

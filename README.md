@@ -13,7 +13,9 @@ npm run dev
 
 Open http://localhost:3000.
 
-Photos and drafts stay in the browser. Song search sends the query to Deezer and Apple’s iTunes catalog. The optional Spotify preview sends a validated track URL and depends on oEmbed availability. Catalog artwork appears in search and the editor preview. Add your own artwork to include a cover in the PNG. You can attach audio after uploading the story in Instagram.
+Photos and drafts stay in the browser. Song search sends the query to Deezer and Apple’s iTunes catalog. The optional Spotify preview sends a validated track URL and depends on oEmbed availability. Catalog artwork is included in the story preview and PNG when the provider returns a cover. You can upload a replacement. You can attach audio after uploading the story in Instagram.
+
+Spotify search is optional. Set server-side `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` for an app with access to the Spotify Search endpoint. Deezer and Apple Music work without these variables.
 
 ## Checks
 

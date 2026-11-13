@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent } from 'react';
 import { decodeImage, photoSlot, renderStory, templates, WIDTH, HEIGHT } from './story';
 import type { Draft, Template } from './story';
@@ -20,36 +20,25 @@ function AlbumArt({ url }: { url: string | null }) {
 }
 const initial: Draft = { title: '', artist: '', caption: '', template: 'cinematic', scale: 1, x: 0, y: 0 };
 const sample: Draft = { ...initial, title: 'ليل ومطر', artist: 'نور الربيع · مثال' };
-function Story({ draft, artwork }: { draft: Draft; artwork?: SpotifyPreview }) {
-  const [broken, setBroken] = useState<string | null>(null);
-  const imageUrl = draft.cover || broken === artwork?.thumbnail ? null : artwork?.thumbnail;
-  const [x, y, w] = templates[draft.template].art;
+function Story({ draft }: { draft: Draft }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let active = true;
     const buffer = document.createElement('canvas');
-    renderStory(buffer, draft, Boolean(imageUrl)).then(() => {
+    renderStory(buffer, draft).then(() => {
       if (!active) return;
-      const canvas = ref.current;
-      canvas?.getContext('2d')?.drawImage(buffer, 0, 0);
+      ref.current?.getContext('2d')?.drawImage(buffer, 0, 0);
       setFailed(false);
     }).catch(() => { if (active) setFailed(true); });
     return () => { active = false; };
-  }, [draft, imageUrl]);
-  return <>{failed && <p role="status">Could not show the preview.</p>}
+  }, [draft]);
+  return <>
+    {failed && <p role="status">Could not load the cover. Try again or replace it in Story cover.</p>}
     <div className="story-surface">
       <canvas ref={ref} className="story-canvas" width={WIDTH} height={HEIGHT} role="img" aria-label="Story preview" />
-      {imageUrl && artwork && <a className="canvas-art" href={artwork.url} target="_blank" rel="noreferrer"
-        aria-label="Open original track"
-        style={{ left: x / WIDTH * 100 + '%', top: y / HEIGHT * 100 + '%', width: w / WIDTH * 100 + '%' }}
-        onPointerDown={(event) => event.stopPropagation()}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={imageUrl} alt="Album cover" onError={() => setBroken(imageUrl)} />
-      </a>}
     </div>
   </>;
-
 }
 
 function FilePicker({ onImage, label, disabled = false }: { onImage: (file: File) => void; label: string; disabled?: boolean }) {
@@ -208,12 +197,17 @@ export default function Home() {
     setDraft((current) => ({ ...current, x: clamp(current.x + dx), y: clamp(current.y + dy) }));
   }
 
+  const catalogCover = selected?.thumbnail ?? (mode === 'link' ? preview?.thumbnail : null);
+  const storyDraft = useMemo(() => catalogCover && !draft.cover
+    ? { ...draft, cover: '/api/cover?url=' + encodeURIComponent(catalogCover) }
+    : draft, [draft, catalogCover]);
+
   async function exportPng() {
     setBusy(true);
     setError('');
     try {
       const canvas = document.createElement('canvas');
-      await renderStory(canvas, draft);
+      await renderStory(canvas, storyDraft);
       const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
       if (!blob) throw new Error();
       const url = URL.createObjectURL(blob);
@@ -224,7 +218,7 @@ export default function Home() {
       link.click();
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 30000);
-    } catch { setError('Could not download the story. Try again.'); }
+    } catch { setError('Could not download the story. Try again or replace the cover in the editor.'); }
     finally { setBusy(false); }
   }
 
@@ -254,7 +248,7 @@ export default function Home() {
         </nav>
         {mode === 'search' && <>
           <div className="search-form live-search" role="search">
-            <input className="input" type="text" enterKeyHint="search" dir="auto" aria-label="Song or artist" placeholder="Song or artist" maxLength={100} value={query} onChange={(event) => {
+            <input className="input" type="text" enterKeyHint="search" dir="auto" aria-label="Song or artist" placeholder="Song title, artist, or both" maxLength={100} value={query} onChange={(event) => {
               updateUrl('');
               setQuery(event.target.value);
               setSearched(false);
@@ -319,7 +313,7 @@ export default function Home() {
           event.currentTarget.setPointerCapture(event.pointerId);
           drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
         }} onPointerMove={pointerMove} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}>
-          <Story draft={draft} artwork={selected ?? (mode === 'link' ? preview ?? undefined : undefined)} />
+          <Story draft={storyDraft} />
         </div>
         <h2 className="template-label">Layout</h2>
         <div className="template-switcher" role="group" aria-label="Story layouts">
@@ -344,7 +338,7 @@ export default function Home() {
         <div className="zoom-buttons"><button className="mini-btn" onClick={() => setDraft({ ...draft, scale: 1, x: 0, y: 0 })}>Reset crop</button><FilePicker label="Replace photo" disabled={busy} onImage={(file) => void pick(file, 'image')} /></div>
         {<details className="cover-options">
           <summary>Story cover</summary>
-          <p>Add your own cover to include it in the download.</p>
+          <p>Upload an image to replace the song cover.</p>
           <div className="cover-upload"><FilePicker label={draft.cover ? 'Replace cover' : 'Add cover'} disabled={busy} onImage={(file) => void pick(file, 'cover')} />
           {draft.cover && <button className="mini-btn" disabled={busy} onClick={() => setDraft({ ...draft, cover: undefined })}>Remove cover</button>}</div>
         </details>}
@@ -354,8 +348,7 @@ export default function Home() {
       </section>}
       {step === 'ready' && <section>
         <h1 ref={heading} tabIndex={-1} className="section-title">Your story is ready</h1>
-        <div className="ready-preview"><Story draft={draft} /></div>
-        {(selected?.thumbnail || preview?.thumbnail) && !draft.cover && <p className="export-note">This is the downloadable version. Add your own cover in the editor to include it.</p>}
+        <div className="ready-preview"><Story draft={storyDraft} /></div>
         <div className="dimensions">PNG · 1080 × 1920</div>
         <p className="ready-copy">Add audio with Instagram Music after uploading.</p>
         {error && <p className="status error" role="alert">{error}</p>}

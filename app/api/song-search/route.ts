@@ -6,7 +6,7 @@ type Track = {
   artist: string;
   thumbnail: string | null;
   url: string;
-  source: 'Deezer' | 'Apple Music';
+  source: 'Deezer' | 'Apple Music' | 'Spotify';
   popularity?: number;
 };
 
@@ -76,6 +76,56 @@ async function apple(query: string): Promise<Track[]> {
   });
 }
 
+let spotifyToken: { value: string; expires: number } | undefined;
+
+async function spotify(query: string): Promise<Track[]> {
+  const id = process.env.SPOTIFY_CLIENT_ID;
+  const secret = process.env.SPOTIFY_CLIENT_SECRET;
+  if (!id || !secret) return [];
+  const signal = AbortSignal.timeout(4500);
+
+  if (!spotifyToken || spotifyToken.expires <= Date.now()) {
+    const response = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST', signal, redirect: 'error', cache: 'no-store',
+      headers: {
+        Authorization: 'Basic ' + Buffer.from(id + ':' + secret).toString('base64'),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: 'grant_type=client_credentials',
+    });
+    if (!response.ok) throw new Error('Spotify authorization unavailable');
+    const data = await response.json();
+    if (typeof data.access_token !== 'string' || typeof data.expires_in !== 'number') throw new Error('Invalid Spotify token');
+    spotifyToken = { value: data.access_token, expires: Date.now() + Math.max(0, data.expires_in - 30) * 1000 };
+  }
+
+  const endpoint = new URL('https://api.spotify.com/v1/search');
+  endpoint.search = new URLSearchParams({ q: query, type: 'track', limit: '5', market: 'IQ' }).toString();
+  const response = await fetch(endpoint, {
+    signal, redirect: 'error', cache: 'no-store', headers: { Authorization: 'Bearer ' + spotifyToken.value },
+  });
+  if (!response.ok) throw new Error('Spotify search unavailable');
+  type Item = { id?: string; name?: string; artists?: { name: string }[]; album?: { images?: { url: string }[] }; popularity?: number };
+  const payload: { tracks?: { items?: Item[] } } = await response.json();
+  if (!Array.isArray(payload.tracks?.items)) throw new Error('Invalid Spotify response');
+  return payload.tracks.items.flatMap((track) => {
+    if (!track.id || !/^[a-z0-9]{22}$/i.test(track.id) || !track.name?.trim() || !track.artists?.[0]?.name?.trim()) return [];
+    const cover = track.album?.images?.find(image => /^https:\/\/i\.scdn\.co\/image\/[a-z0-9]+$/i.test(image.url));
+    return [{
+      id: 'spotify-' + track.id, title: track.name, artist: track.artists.map(artist => artist.name).join(', '),
+      thumbnail: cover?.url ?? null, url: 'https://open.spotify.com/track/' + track.id,
+      source: 'Spotify', popularity: (track.popularity ?? 0) * 10000,
+    }];
+  });
+}
+
+function wordMatch(input: string, word: string) {
+  if (input === word) return 2;
+  if (input.length >= 3 && word.startsWith(input)) return 1;
+  if (input.length < 5 || input.length !== word.length) return 0;
+  return Array.from(input).filter((letter, index) => letter !== word[index]).length === 1 ? 1 : 0;
+}
+
 function rank(tracks: Track[], query: string) {
   const words = query.split(' ');
   const covers = /\b(?:cover|karaoke|tribute|instrumental|remix|sped up|slowed)\b|كاريوكي|بدون موسيقي/;
@@ -85,12 +135,14 @@ function rank(tracks: Track[], query: string) {
     const artist = canonical(track.artist);
     const titleWords = title.split(' ');
     const artistWords = artist.split(' ');
-    if (!words.every(word => titleWords.includes(word) || artistWords.includes(word))) return [];
+    const relevance = words.map(word => Math.max(...titleWords.concat(artistWords).map(candidate => wordMatch(word, candidate))));
+    if (relevance.includes(0)) return [];
+    const partialMatches = relevance.filter(match => match === 1).length;
     const artistHits = words.filter(word => artistWords.includes(word)).length;
     const exact = title === query || artist === query;
     const titleWithArtist = words.filter(word => !artistWords.includes(word)).join(' ') === title;
     const titleContainsArtist = artistHits === 0 && /[-–—|]/.test(track.title);
-    const score = (exact ? 24 : 0) + (titleWithArtist && artistHits ? 40 : 0) + artistHits * 12
+    const score = -10 * partialMatches + (track.source === 'Spotify' ? 3 : 0) + (exact ? 24 : 0) + (titleWithArtist && artistHits ? 40 : 0) + artistHits * 12
       + (!alternativesRequested && (covers.test(title) || titleContainsArtist) ? -28 : 0)
       + (track.thumbnail ? 2 : 0) + (knownReleases.some(release => canonical(release.title) === title && canonical(release.artist) === artist) ? 12 : 0) + Math.min(8, Math.max(0, (track.popularity ?? 0) / 125000));
     return [{ track, score, key: title + '|' + artist }];
@@ -117,6 +169,7 @@ export async function GET(request: Request) {
   });
   const requests = [deezer(query), apple(query)];
   if (/\p{Script=Arabic}/u.test(raw) && raw !== query) requests.push(deezer(raw));
+  if (process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET) requests.push(spotify(raw));
   const catalogs = await Promise.allSettled(requests);
   if (!known.length && catalogs.every(result => result.status === 'rejected')) {
     return NextResponse.json({ error: 'Could not reach the music catalogs. Try again or enter the song manually.' }, { status: 502 });
