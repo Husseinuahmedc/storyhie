@@ -136,3 +136,19 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible 
 .cover-options { margin-block:16px; border-block-start:1px solid var(--border); padding-block-start:10px; }
 .cover-options summary { cursor:pointer; font-weight:700; padding-block:7px; }
 .cover-options p { color:var(--muted); font-size:14px; }
+.story-surface { position:relative; }
+.canvas-art { position:absolute; display:block; aspect-ratio:1; }
+.canvas-art img { width:100%; height:100%; object-fit:contain; display:block; }
+.template-btn { display:flex; align-items:center; justify-content:center; flex-direction:column; gap:6px; min-height:76px; }
+.template-icon { width:24px; height:36px; border:1px solid currentColor; border-radius:3px; position:relative; display:block; }
+.template-icon i,.template-icon b { position:absolute; display:block; background:currentColor; border-radius:1px; }
+.template-icon i { inset:4px 3px 12px; opacity:.48; }
+.template-icon b { width:8px; height:3px; right:3px; bottom:5px; }
+.template-cinematic i { inset:1px; }
+.template-vinyl i { bottom:19px; }
+.template-vinyl b { width:9px; height:9px; right:6px; bottom:6px; border-radius:50%; }
+.template-postcard i { top:11px; bottom:4px; }
+.template-postcard b { top:4px; }
+.template-wide i { top:10px; bottom:10px; inset-inline:0; }
+.template-cover i { inset-inline:5px; bottom:15px; }
+.export-note { text-align:center; color:var(--muted); font-size:13px; margin:12px 0; }

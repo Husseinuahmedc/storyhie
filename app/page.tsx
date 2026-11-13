@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent } from 'react';
-import { decodeImage, photoSlot, renderStory } from './story';
+import { decodeImage, photoSlot, renderStory, templates, WIDTH, HEIGHT } from './story';
 import type { Draft, Template } from './story';
 import { canonicalTrack } from './spotify';
 
@@ -19,23 +19,36 @@ function AlbumArt({ url }: { url: string | null }) {
 }
 const initial: Draft = { title: '', artist: '', caption: '', template: 'cinematic', scale: 1, x: 0, y: 0 };
 const sample: Draft = { ...initial, title: 'ليل ومطر', artist: 'نور الربيع · مثال' };
-const templates: [Template, string][] = [['cinematic', 'سينمائي'], ['polaroid', 'بولارويد'], ['cover', 'لون من الغلاف']];
-
-function Story({ draft }: { draft: Draft }) {
+function Story({ draft, artwork }: { draft: Draft; artwork?: SpotifyPreview }) {
+  const [broken, setBroken] = useState<string | null>(null);
+  const imageUrl = draft.cover || broken === artwork?.thumbnail ? null : artwork?.thumbnail;
+  const [x, y, w] = templates[draft.template].art;
   const ref = useRef<HTMLCanvasElement>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let active = true;
     const buffer = document.createElement('canvas');
-    renderStory(buffer, draft).then(() => {
+    renderStory(buffer, draft, Boolean(imageUrl)).then(() => {
       if (!active) return;
       const canvas = ref.current;
       canvas?.getContext('2d')?.drawImage(buffer, 0, 0);
       setFailed(false);
     }).catch(() => { if (active) setFailed(true); });
     return () => { active = false; };
-  }, [draft]);
-  return <>{failed && <p role="status">تعذّر عرض المعاينة.</p>}<canvas ref={ref} className="story-canvas" width={1080} height={1920} role="img" aria-label="معاينة الستوري" /></>;
+  }, [draft, imageUrl]);
+  return <>{failed && <p role="status">تعذّر عرض المعاينة.</p>}
+    <div className="story-surface">
+      <canvas ref={ref} className="story-canvas" width={WIDTH} height={HEIGHT} role="img" aria-label="معاينة الستوري" />
+      {imageUrl && artwork && <a className="canvas-art" href={artwork.url} target="_blank" rel="noreferrer"
+        aria-label="افتح الأغنية في مصدرها"
+        style={{ left: x / WIDTH * 100 + '%', top: y / HEIGHT * 100 + '%', width: w / WIDTH * 100 + '%' }}
+        onPointerDown={(event) => event.stopPropagation()}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={imageUrl} alt="غلاف الأغنية" onError={() => setBroken(imageUrl)} />
+      </a>}
+    </div>
+  </>;
+
 }
 
 function FilePicker({ onImage, label, disabled = false }: { onImage: (file: File) => void; label: string; disabled?: boolean }) {
@@ -295,16 +308,16 @@ export default function Home() {
           event.currentTarget.setPointerCapture(event.pointerId);
           drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
         }} onPointerMove={pointerMove} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}>
-          <Story draft={draft} />
+          <Story draft={draft} artwork={selected ?? (mode === 'link' ? preview ?? undefined : undefined)} />
         </div>
         <h2 className="template-label">القوالب</h2>
-        <div className="template-switcher">{templates.map(([id, label]) => <button key={id} className={draft.template === id ? 'template-btn active' : 'template-btn'} aria-pressed={draft.template === id} onClick={() => setDraft({ ...draft, template: id })}>{label}</button>)}</div>
+        <div className="template-switcher">{(Object.keys(templates) as Template[]).map((id) => <button key={id} className={draft.template === id ? 'template-btn active' : 'template-btn'} aria-pressed={draft.template === id} onClick={() => setDraft({ ...draft, template: id })}><span className={'template-icon template-' + id} aria-hidden="true"><i /><b /></span>{templates[id].label}</button>)}</div>
         <label className="field"><span>جملة قصيرة (اختياري)</span><textarea className="textarea" dir="auto" rows={2} maxLength={80} value={draft.caption} onChange={(event) => setDraft({ ...draft, caption: event.target.value })} placeholder="اكتب جملة قصيرة…" /></label>
         <label className="control-row"><span>حجم الصورة</span><input className="range" type="range" min="1" max="2.5" step=".01" value={draft.scale} onChange={(event) => setDraft({ ...draft, scale: Number(event.target.value) })} /></label>
         <div className="zoom-buttons"><button className="mini-btn" onClick={() => setDraft({ ...draft, scale: 1, x: 0, y: 0 })}>إرجاع الصورة</button><FilePicker label="بدّل الصورة" disabled={busy} onImage={(file) => void pick(file, 'image')} /></div>
-        {selected && <details className="cover-options">
+        {<details className="cover-options">
           <summary>غلاف الستوري</summary>
-          <p>غلاف الأغنية يظهر بالمعاينة. تگدر ترفع صورة تملك حق استخدامها للستوري.</p>
+          <p>غلاف الكتالوج يظهر بالمعاينة. ارفع غلافًا تملك حق استخدامه حتى يظهر بالملف المنزّل.</p>
           <div className="cover-upload"><FilePicker label={draft.cover ? 'بدّل غلافك' : 'أضف غلافك'} disabled={busy} onImage={(file) => void pick(file, 'cover')} />
           {draft.cover && <button className="mini-btn" disabled={busy} onClick={() => setDraft({ ...draft, cover: undefined })}>إزالة الغلاف</button>}</div>
         </details>}
@@ -315,6 +328,7 @@ export default function Home() {
       {step === 'ready' && <section>
         <h1 ref={heading} tabIndex={-1} className="section-title">ستوريك جاهز</h1>
         <div className="ready-preview"><Story draft={draft} /></div>
+        {(selected?.thumbnail || preview?.thumbnail) && !draft.cover && <p className="export-note">هاي معاينة الملف المنزّل. تگدر ترجع وتضيف غلافك من «غلاف الستوري».</p>}
         <div className="dimensions">PNG · 1080 × 1920</div>
         <p className="ready-copy">بعد الرفع، أضف الأغنية من Music أو رابطها من ملصق Link داخل الإنستا.</p>
         {error && <p className="status error" role="alert">{error}</p>}

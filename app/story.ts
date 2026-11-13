@@ -1,12 +1,20 @@
-export type Template = 'cinematic' | 'polaroid' | 'cover';
+export type Template = 'cinematic' | 'polaroid' | 'cover' | 'vinyl' | 'postcard' | 'wide';
 export type Draft = { image?: string; title: string; artist: string; cover?: string; caption: string; template: Template; scale: number; x: number; y: number };
 export const WIDTH = 1080;
 export const HEIGHT = 1920;
 
+export const templates = {
+  cinematic: { label: 'سينمائي', photo: [0, 0, 1080, 1920], art: [792, 1380, 164], dark: true, background: '#211827' },
+  polaroid: { label: 'بولارويد', photo: [76, 124, 928, 1192], art: [792, 1400, 164], dark: false, background: '#FFF1E6' },
+  cover: { label: 'لون من الغلاف', photo: [80, 140, 920, 1120], art: [792, 1400, 164], dark: false, background: '#D2B8FF' },
+  vinyl: { label: 'أسطوانة', photo: [80, 145, 920, 870], art: [390, 1060, 300], dark: true, background: '#171C29' },
+  postcard: { label: 'بطاقة بريدية', photo: [104, 510, 872, 1050], art: [782, 242, 176], dark: false, background: '#F4F2E9' },
+  wide: { label: 'لقطة عريضة', photo: [0, 585, 1080, 730], art: [110, 1395, 184], dark: true, background: '#26382C' },
+} as const;
+
 export function photoSlot(template: Template) {
-  if (template === 'polaroid') return { x: 76, y: 124, w: 928, h: 1192 };
-  if (template === 'cover') return { x: 80, y: 140, w: 920, h: 1120 };
-  return { x: 0, y: 0, w: WIDTH, h: HEIGHT };
+  const [x, y, w, h] = templates[template].photo;
+  return { x, y, w, h };
 }
 
 export async function decodeImage(src: string) {
@@ -16,14 +24,31 @@ export async function decodeImage(src: string) {
   return image;
 }
 
-function fitText(ctx: CanvasRenderingContext2D, text: string, max: number) {
-  if (ctx.measureText(text).width <= max) return text;
-  const chars = Array.from(text);
-  while (chars.length && ctx.measureText(chars.join('') + '…').width > max) chars.pop();
-  return chars.join('') + '…';
+function drawText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, width: number, size: number, weight: number, maxLines: number) {
+  const value = text.trim();
+  if (!value) return;
+  ctx.direction = /^[^\p{L}]*\p{Script=Arabic}/u.test(value) ? 'rtl' : 'ltr';
+  ctx.textAlign = 'right';
+  let lines: string[] = [];
+  for (; size >= 24; size -= 2) {
+    ctx.font = weight + ' ' + size + 'px "Noto Sans Arabic", Arial';
+    lines = [];
+    let line = '';
+    for (const word of value.split(/\s+/)) {
+      const candidate = line ? line + ' ' + word : word;
+      if (line && ctx.measureText(candidate).width > width) {
+        lines.push(line);
+        line = word;
+      } else line = candidate;
+    }
+    if (line) lines.push(line);
+    if (lines.length <= maxLines && lines.every(item => ctx.measureText(item).width <= width)) break;
+  }
+  if (lines.length > maxLines) lines = [lines.join(' ')];
+  lines.forEach((item, index) => ctx.fillText(item, x, y + index * (size + 12), width));
 }
 
-export async function renderStory(canvas: HTMLCanvasElement, draft: Draft) {
+export async function renderStory(canvas: HTMLCanvasElement, draft: Draft, hideArtwork = false) {
   const [photo, cover] = await Promise.all([
     decodeImage(draft.image ?? '/assets/sample.webp'),
     draft.cover ? decodeImage(draft.cover) : null,
@@ -34,8 +59,8 @@ export async function renderStory(canvas: HTMLCanvasElement, draft: Draft) {
   canvas.height = HEIGHT;
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('تعذّر تجهيز الصورة.');
-  const paper = draft.template === 'polaroid';
-  let background = paper ? '#FFF1E6' : '#211827';
+  const layout = templates[draft.template];
+  let background: string = layout.background;
   if (draft.template === 'cover') {
     background = '#D2B8FF';
     if (cover) {
@@ -73,49 +98,42 @@ export async function renderStory(canvas: HTMLCanvasElement, draft: Draft) {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 870, WIDTH, HEIGHT - 870);
   }
-  const cardY = cinematic ? 1380 : 1400;
-  ctx.fillStyle = cinematic ? '#211827' : background;
-  ctx.beginPath();
-  ctx.roundRect(80, cardY, 920, 220, 32);
-  ctx.fill();
-  const artX = 792;
-  const artY = cardY + 28;
-  const artSize = 164;
-  ctx.fillStyle = '#D2B8FF';
-  ctx.fillRect(artX, artY, artSize, artSize);
-  if (cover) {
-    const size = Math.min(cover.naturalWidth, cover.naturalHeight);
-    ctx.drawImage(cover, (cover.naturalWidth - size) / 2, (cover.naturalHeight - size) / 2, size, size, artX, artY, artSize, artSize);
-  } else {
+  const [artX, artY, artSize] = layout.art;
+  if (cinematic) {
     ctx.fillStyle = '#211827';
     ctx.beginPath();
-    ctx.arc(874, artY + 82, 48, 0, 2 * Math.PI);
-    ctx.fill();
-    ctx.fillStyle = '#FFABC4';
-    ctx.beginPath();
-    ctx.arc(874, artY + 82, 15, 0, 2 * Math.PI);
+    ctx.roundRect(72, artY - 26, 936, 260, 32);
     ctx.fill();
   }
-  ctx.direction = 'rtl';
-  ctx.textAlign = 'right';
-  ctx.fillStyle = cinematic ? '#FFF1E6' : '#211827';
-  ctx.font = '700 60px "Noto Sans Arabic", Arial';
-  ctx.fillText(fitText(ctx, draft.title, 630), 758, cardY + 95);
-  ctx.font = '400 40px "Noto Sans Arabic", Arial';
-  ctx.fillStyle = cinematic ? '#DDC8D6' : '#634A65';
-  ctx.fillText(fitText(ctx, draft.artist, 630), 758, cardY + 158);
+  if (!hideArtwork) {
+    ctx.fillStyle = '#D2B8FF';
+    ctx.fillRect(artX, artY, artSize, artSize);
+    if (cover) {
+      const ratio = artSize / Math.max(cover.naturalWidth, cover.naturalHeight);
+      const width = cover.naturalWidth * ratio;
+      const height = cover.naturalHeight * ratio;
+      ctx.drawImage(cover, artX + (artSize - width) / 2, artY + (artSize - height) / 2, width, height);
+    } else {
+      ctx.fillStyle = '#211827';
+      ctx.beginPath();
+      ctx.arc(artX + artSize / 2, artY + artSize / 2, artSize * .29, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.fillStyle = '#FFABC4';
+      ctx.beginPath();
+      ctx.arc(artX + artSize / 2, artY + artSize / 2, artSize * .09, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+  }
 
-  ctx.fillStyle = cinematic ? '#FFF1E6' : '#211827';
-  ctx.font = '700 48px "Noto Sans Arabic", Arial';
-  const lines: string[] = [];
-  let line = '';
-  for (const word of draft.caption.trim().split(/\s+/)) {
-    const candidate = line ? line + ' ' + word : word;
-    if (line && ctx.measureText(candidate).width > 900) {
-      lines.push(line);
-      line = word;
-    } else line = candidate;
-  }
-  if (line) lines.push(line);
-  lines.slice(0, 2).forEach((text, i) => ctx.fillText(fitText(ctx, i === 1 && lines.length > 2 ? text + '…' : text, 900), 980, 1700 + 64 * i));
+  const vinyl = draft.template === 'vinyl';
+  const wide = draft.template === 'wide';
+  const x = vinyl || wide ? 972 : artX - 32;
+  const width = vinyl ? 864 : wide ? 640 : x - 106;
+  const y = vinyl ? 1430 : artY + 48;
+  ctx.fillStyle = layout.dark ? '#FFF1E6' : '#211827';
+  drawText(ctx, draft.title, x, y, width, 54, 700, 2);
+  ctx.fillStyle = layout.dark ? '#DDC8D6' : '#52596A';
+  drawText(ctx, draft.artist, x, y + 124, width, 36, 400, 2);
+  ctx.fillStyle = layout.dark ? '#FFF1E6' : '#211827';
+  drawText(ctx, draft.caption, 980, 1715, 880, 46, 700, 2);
 }
