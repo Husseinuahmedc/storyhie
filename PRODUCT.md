@@ -21,13 +21,13 @@ The product connects a specific photo and a song through a quick, Arabic Iraqi w
 Mobile-first browser use, with the user’s photo and draft staying in the browser during the editing session. Spotify is an optional link preview.
 
 ## Capabilities and Constraints
-Manual song entry must always work. Three templates, crop positioning, captions, URL validation, and 1080 × 1920 PNG export are required. Only a validated Spotify track URL may reach the metadata endpoint.
+Manual song entry must always work. Three templates, crop positioning, captions, URL validation, and 1080 × 1920 PNG export are required. Only the search term or a validated Spotify track URL reaches a catalog endpoint.
 
 ## Brand Commitments
 Arabic RTL interface, Iraqi Arabic copy, dark ink surfaces, rose primary action, warm paper and lavender accents, plus the supplied viewfinder music-mark asset.
 
 ## Evidence on Hand
-DESIGN.md, IMPLEMENTATION.md, references/*.png, and assets/mark.svg. No production photo or licensed song artwork is supplied.
+DESIGN.md, IMPLEMENTATION.md, references/*.webp, and assets/mark.svg. No production photo or licensed song artwork is supplied.
 
 ## Product Principles
 - Keep the moment personal and local.

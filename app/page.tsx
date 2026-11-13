@@ -8,6 +8,15 @@ import { canonicalTrack } from './spotify';
 
 type Step = 'start' | 'track' | 'editor' | 'ready';
 type SpotifyPreview = { title: string; artist: string; thumbnail: string | null; url: string };
+type CatalogTrack = SpotifyPreview & { id: number };
+const steps: Record<Step, string> = { start: 'الصورة', track: 'الأغنية', editor: 'التصميم', ready: 'التنزيل' };
+
+function AlbumArt({ url }: { url: string | null }) {
+  const [failed, setFailed] = useState(false);
+  if (!url || failed) return <span className="album-placeholder" aria-hidden="true">♪</span>;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img className="provider-art" src={url} width={48} height={48} alt="" onError={() => setFailed(true)} />;
+}
 const initial: Draft = { title: '', artist: '', caption: '', template: 'cinematic', scale: 1, x: 0, y: 0 };
 const sample: Draft = { ...initial, title: 'ليل ومطر', artist: 'نور الربيع · مثال' };
 const templates: [Template, string][] = [['cinematic', 'سينمائي'], ['polaroid', 'بولارويد'], ['cover', 'لون من الغلاف']];
@@ -65,6 +74,11 @@ export default function Home() {
   const [step, setStep] = useState<Step>('start');
   const [draft, setDraft] = useState(initial);
   const [trackUrl, setTrackUrl] = useState('');
+  const [query, setQuery] = useState('');
+  const [mode, setMode] = useState<'search' | 'manual' | 'link'>('search');
+  const [results, setResults] = useState<CatalogTrack[]>([]);
+  const [searched, setSearched] = useState(false);
+  const [selected, setSelected] = useState<CatalogTrack | null>(null);
   const [preview, setPreview] = useState<SpotifyPreview | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -108,6 +122,39 @@ export default function Home() {
     setError('');
   }
 
+  function changeMode(next: typeof mode) {
+    request.current?.abort();
+    request.current = null;
+    setLoading(false);
+    setError('');
+    setMode(next);
+  }
+
+  async function searchSongs() {
+    const term = query.trim();
+    if (term.length < 2) return;
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
+    setLoading(true);
+    setError('');
+    setSearched(false);
+    setResults([]);
+    try {
+      const response = await fetch('/api/song-search?q=' + encodeURIComponent(term), { signal: controller.signal });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'تعذّر البحث.');
+      if (!controller.signal.aborted) {
+        setResults(data.tracks);
+        setSearched(true);
+      }
+    } catch (cause) {
+      if (!controller.signal.aborted) setError((cause as Error).message || 'تعذّر البحث.');
+    } finally {
+      if (request.current === controller) setLoading(false);
+    }
+  }
+
   async function previewSpotify() {
     const url = canonicalTrack(trackUrl);
     if (!url) { setError('الصق رابط أغنية مباشر من Spotify. تگدر تكمل بالإدخال اليدوي.'); return; }
@@ -127,6 +174,8 @@ export default function Home() {
       if (controller.signal.aborted) return;
       if (!response.ok) { setError(data.error || 'تعذّرت المعاينة. جرّب الإدخال اليدوي.'); return; }
       setPreview(data);
+      setSelected(null);
+      setDraft((current) => ({ ...current, title: data.title || current.title, artist: data.artist || current.artist }));
     } catch {
       if (!controller.signal.aborted) setError('تعذّرت المعاينة. جرّب الإدخال اليدوي.');
     } finally {
@@ -166,13 +215,16 @@ export default function Home() {
     finally { setBusy(false); }
   }
 
-  const canonical = canonicalTrack(trackUrl);
+  const canonical = selected?.url ?? (mode === 'link' ? canonicalTrack(trackUrl) : null);
   return <main className="app-shell"><div className="phone-frame">
     <div className="brand-row">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img className="brand-mark" src="/assets/mark.svg" alt="" width={35} height={35} />
       <span>أغنية لهاللقطة</span>
     </div>
+    {step !== 'start' && <ol className="steps" aria-label="خطوات إعداد الستوري">
+      {(['track', 'editor', 'ready'] as const).map((item) => <li key={item} aria-current={step === item ? 'step' : undefined}>{steps[item]}</li>)}
+    </ol>}
     <div className="page-content">
       {step === 'start' && <>
         <section className="hero"><h1>أغنية<br />لهاللقطة</h1><p>اختار صورتك وأغنية تشبهها، وسوّي ستوري بطريقتك.</p></section>
@@ -182,32 +234,63 @@ export default function Home() {
       </>}
       {step === 'track' && <section>
         <h1 ref={heading} tabIndex={-1} className="section-title">اختار أغنية</h1>
-        <p className="section-copy">الصق رابط الأغنية من Spotify أو اكتب معلوماتها بنفسك.</p>
-        <label className="field"><span>رابط Spotify (اختياري)</span><input className="input url-field" dir="ltr" inputMode="url" maxLength={500} value={trackUrl} onChange={(event) => updateUrl(event.target.value)} placeholder="open.spotify.com/track/…" /></label>
-        <button className="primary-btn full" disabled={loading} onClick={() => void previewSpotify()}>{loading ? 'جارٍ التحميل…' : 'اعرض الأغنية'}</button>
-        {error && <p className="status error" role="alert">{error}</p>}
-        {preview && <div className="notice">
-          <a className="track-row" href={preview.url} target="_blank" rel="noreferrer">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            {preview.thumbnail && <img className="provider-art" src={preview.thumbnail} width={52} height={52} alt="" />}
-            <span><b dir="auto">{preview.title || 'الأغنية'}</b>{preview.artist && <small dir="auto">{preview.artist}</small>}<small>افتح على Spotify</small></span>
-          </a>
-          <p>{preview.thumbnail ? 'الغلاف يظهر هنا للمعاينة.' : 'الغلاف غير متوفر للمعاينة.'} اكتب التفاصيل اللي تريدها بالستوري أدناه.</p>
-        </div>}
-        <label className="field"><span>اسم الأغنية</span><input className="input" dir="auto" maxLength={100} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
-        <label className="field"><span>الفنان</span><input className="input" dir="auto" maxLength={80} value={draft.artist} onChange={(event) => setDraft({ ...draft, artist: event.target.value })} /></label>
-        <div className="cover-upload"><FilePicker label={draft.cover ? 'بدّل غلافك' : 'أضف غلافك'} disabled={busy} onImage={(file) => void pick(file, 'cover')} /><span>اختياري، استخدم صورة عندك حق استخدامها</span></div>
-        {draft.cover && <button className="mini-btn" onClick={() => setDraft({ ...draft, cover: undefined })}>إزالة الغلاف</button>}
-        <div className="form-actions">
-          <button className="primary-btn" disabled={busy} onClick={() => {
+        <p className="section-copy">ابحث باسم الأغنية أو الفنان، واختار النتيجة حتى تكمل الستوري.</p>
+        <nav className="track-modes" aria-label="طريقة اختيار الأغنية">
+          {([['search', 'بحث'], ['manual', 'إدخال يدوي'], ['link', 'رابط Spotify']] as const).map(([id, label]) =>
+            <button key={id} className="mode-btn" aria-pressed={mode === id} onClick={() => changeMode(id)}>{label}</button>)}
+        </nav>
+        {mode === 'search' && <>
+          <form className="search-form" onSubmit={(event) => { event.preventDefault(); void searchSongs(); }}>
+            <input className="input" type="search" enterKeyHint="search" dir="auto" aria-label="اسم الأغنية أو الفنان" placeholder="مثلاً فيروز أو كيفك إنت" maxLength={100} value={query} onChange={(event) => {
+              updateUrl('');
+              setQuery(event.target.value);
+              setSearched(false);
+              setResults([]);
+            }} />
+            <button className="primary-btn" disabled={loading || query.trim().length < 2}>بحث</button>
+          </form>
+          {loading && <p className="status" role="status">جاري البحث…</p>}
+          {searched && results.length === 0 && <p className="status" role="status">ما لكينا نتائج. جرّب اسم الفنان أو كتابة ثانية.</p>}
+          {results.length > 0 && <ul className="results" aria-label="نتائج البحث">
+            {results.map((track) => <li key={track.id}>
+              <button className="result" onClick={() => {
+                setSelected(track);
+                setDraft((current) => ({ ...current, title: track.title, artist: track.artist, cover: current.title === track.title && current.artist === track.artist ? current.cover : undefined }));
+                go('editor');
+              }}>
+                <AlbumArt key={track.thumbnail} url={track.thumbnail} />
+                <span className="track-meta"><b dir="auto">{track.title}</b><small dir="auto">{track.artist}</small></span>
+              </button>
+              <a className="source-link" href={track.url} target="_blank" rel="noreferrer" aria-label={'افتح ' + track.title + ' على Deezer'}>Deezer ↗</a>
+            </li>)}
+          </ul>}
+        </>}
+        {mode === 'link' && <>
+          <form className="search-form" onSubmit={(event) => { event.preventDefault(); void previewSpotify(); }}>
+            <input className="input url-field" dir="ltr" inputMode="url" aria-label="رابط Spotify" maxLength={500} value={trackUrl} onChange={(event) => updateUrl(event.target.value)} placeholder="open.spotify.com/track/…" />
+            <button className="primary-btn" disabled={loading || !trackUrl.trim()}>{loading ? 'لحظة…' : 'اعرض'}</button>
+          </form>
+          {preview && <div className="notice"><a className="track-row" href={preview.url} target="_blank" rel="noreferrer">
+            <AlbumArt key={preview.thumbnail} url={preview.thumbnail} /><span className="track-meta"><b dir="auto">{preview.title || 'الأغنية'}</b>{preview.artist && <small dir="auto">{preview.artist}</small>}<small>افتح على Spotify</small></span>
+          </a></div>}
+        </>}
+        {mode !== 'search' && <>
+          <label className="field"><span>اسم الأغنية</span><input className="input" dir="auto" maxLength={100} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
+          <label className="field"><span>الفنان</span><input className="input" dir="auto" maxLength={80} value={draft.artist} onChange={(event) => setDraft({ ...draft, artist: event.target.value })} /></label>
+          <div className="cover-upload"><FilePicker label={draft.cover ? 'بدّل غلافك' : 'أضف غلافك'} disabled={busy} onImage={(file) => void pick(file, 'cover')} /><span>اختياري، صورة تملك حق استخدامها</span></div>
+          {draft.cover && <button className="mini-btn" onClick={() => setDraft({ ...draft, cover: undefined })}>إزالة الغلاف</button>}
+          <button className="primary-btn full" disabled={busy} onClick={() => {
             if (!draft.title.trim() || !draft.artist.trim()) { setError('اكتب اسم الأغنية والفنان حتى نكمل.'); return; }
+            setSelected(null);
             go('editor');
           }}>اختار القالب</button>
-          <button className="secondary-btn" onClick={() => go('start')}>رجوع</button>
-        </div>
+        </>}
+        {error && <p className="status error" role="alert">{error}</p>}
+        <button className="mini-btn back-link" onClick={() => { changeMode('search'); go('start'); }}>رجوع للصورة</button>
       </section>}
       {step === 'editor' && <section>
         <h1 ref={heading} tabIndex={-1} className="section-title">عدّل الستوري</h1>
+        {selected && <div className="chosen-track"><AlbumArt key={selected.thumbnail} url={selected.thumbnail} /><span className="track-meta"><b dir="auto">{selected.title}</b><small dir="auto">{selected.artist}</small></span><a className="source-link" href={selected.url} target="_blank" rel="noreferrer">Deezer ↗</a></div>}
         <div className="preview-card" onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId);
           drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
@@ -219,6 +302,12 @@ export default function Home() {
         <label className="field"><span>جملة قصيرة (اختياري)</span><textarea className="textarea" dir="auto" rows={2} maxLength={80} value={draft.caption} onChange={(event) => setDraft({ ...draft, caption: event.target.value })} placeholder="اكتب جملة قصيرة…" /></label>
         <label className="control-row"><span>حجم الصورة</span><input className="range" type="range" min="1" max="2.5" step=".01" value={draft.scale} onChange={(event) => setDraft({ ...draft, scale: Number(event.target.value) })} /></label>
         <div className="zoom-buttons"><button className="mini-btn" onClick={() => setDraft({ ...draft, scale: 1, x: 0, y: 0 })}>إرجاع الصورة</button><FilePicker label="بدّل الصورة" disabled={busy} onImage={(file) => void pick(file, 'image')} /></div>
+        {selected && <details className="cover-options">
+          <summary>غلاف الستوري</summary>
+          <p>غلاف الأغنية يظهر بالمعاينة. تگدر ترفع صورة تملك حق استخدامها للستوري.</p>
+          <div className="cover-upload"><FilePicker label={draft.cover ? 'بدّل غلافك' : 'أضف غلافك'} disabled={busy} onImage={(file) => void pick(file, 'cover')} />
+          {draft.cover && <button className="mini-btn" disabled={busy} onClick={() => setDraft({ ...draft, cover: undefined })}>إزالة الغلاف</button>}</div>
+        </details>}
         <p className="editor-hint">حرّك الصورة بإصبعك أو بالماوس داخل القالب.</p>
         {error && <p className="status error" role="alert">{error}</p>}
         <div className="form-actions"><button className="primary-btn" disabled={busy} onClick={() => go('ready')}>جهّز الستوري</button><button className="secondary-btn" onClick={() => go('track')}>رجوع للأغنية</button></div>
@@ -232,13 +321,13 @@ export default function Home() {
         <div className="form-actions">
           <button className="primary-btn" disabled={busy} onClick={() => void exportPng()}>{busy ? 'جارٍ تجهيز الملف…' : 'نزّل PNG'}</button>
           <button className="secondary-btn" onClick={() => go('editor')}>رجوع للتعديل</button>
-          <button className="secondary-btn" disabled={busy} onClick={() => { setDraft(initial); updateUrl(''); go('start'); }}>ستوري جديد</button>
+          <button className="secondary-btn" disabled={busy} onClick={() => { setDraft(initial); setSelected(null); setQuery(''); setResults([]); setSearched(false); changeMode('search'); updateUrl(''); go('start'); }}>ستوري جديد</button>
         </div>
         {canonical && <div className="notice"><p className="track-link">{canonical}</p><div className="link-row">
           <button className="secondary-btn" onClick={async () => {
             try { await navigator.clipboard.writeText(canonical); setNotice('اننسخ الرابط.'); }
             catch { setNotice('انسخ الرابط يدويًا من النص أعلاه.'); }
-          }}>انسخ الرابط</button><a className="secondary-btn" href={canonical} target="_blank" rel="noreferrer">افتح Spotify</a>
+          }}>انسخ الرابط</button><a className="secondary-btn" href={canonical} target="_blank" rel="noreferrer">افتح الأغنية</a>
         </div><p role="status">{notice}</p></div>}
       </section>}
     </div>
