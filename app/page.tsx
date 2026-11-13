@@ -9,7 +9,7 @@ import { canonicalTrack } from './spotify';
 
 type Step = 'start' | 'track' | 'editor' | 'ready';
 type SpotifyPreview = { title: string; artist: string; thumbnail: string | null; url: string };
-type CatalogTrack = SpotifyPreview & { id: number };
+type CatalogTrack = SpotifyPreview & { id: string; source: string };
 const steps: Record<Step, string> = { start: 'Photo', track: 'Song', editor: 'Design', ready: 'Download' };
 
 function AlbumArt({ url }: { url: string | null }) {
@@ -254,7 +254,7 @@ export default function Home() {
         </nav>
         {mode === 'search' && <>
           <div className="search-form live-search" role="search">
-            <input className="input" type="search" enterKeyHint="search" dir="auto" aria-label="Song or artist" placeholder="Try Fairuz or فيروز" maxLength={100} value={query} onChange={(event) => {
+            <input className="input" type="text" enterKeyHint="search" dir="auto" aria-label="Song or artist" placeholder="Song or artist" maxLength={100} value={query} onChange={(event) => {
               updateUrl('');
               setQuery(event.target.value);
               setSearched(false);
@@ -263,7 +263,7 @@ export default function Home() {
             {query && <button className="mini-btn" onClick={() => { setQuery(''); setResults([]); setSearched(false); setLoading(false); setError(''); }}>Clear</button>}
           </div>
           {loading && <p className="status" role="status">Searching…</p>}
-          {searched && results.length === 0 && <p className="status" role="status">No songs found. Try another spelling or the artist name.</p>}
+          {searched && results.length === 0 && <p className="status" role="status">No close matches. Try the song name with the artist, or use manual entry.</p>}
           {results.length > 0 && <ul className="results" aria-label="Search results">
             {results.map((track) => <li key={track.id}>
               <button className="result" onClick={() => {
@@ -272,9 +272,9 @@ export default function Home() {
                 go('editor');
               }}>
                 <AlbumArt key={track.thumbnail} url={track.thumbnail} />
-                <span className="track-meta"><b dir="auto">{track.title}</b><small dir="auto">{track.artist}</small></span>
+                <span className="track-meta"><b><bdi>{track.title}</bdi></b><small><bdi>{track.artist}</bdi></small></span>
               </button>
-              <a className="source-link" href={track.url} target="_blank" rel="noreferrer" aria-label={'Open ' + track.title + ' on Deezer'}>Deezer ↗</a>
+              <a className="source-link" href={track.url} target="_blank" rel="noreferrer" aria-label={'Open ' + track.title + ' on ' + track.source}>{track.source} ↗</a>
             </li>)}
           </ul>}
         </>}
@@ -284,7 +284,7 @@ export default function Home() {
             <button className="primary-btn" disabled={loading || !trackUrl.trim()}>{loading ? 'Loading…' : 'Preview'}</button>
           </form>
           {preview && <div className="notice"><a className="track-row" href={preview.url} target="_blank" rel="noreferrer">
-            <AlbumArt key={preview.thumbnail} url={preview.thumbnail} /><span className="track-meta"><b dir="auto">{preview.title || 'Track'}</b>{preview.artist && <small dir="auto">{preview.artist}</small>}<small>Open in Spotify</small></span>
+            <AlbumArt key={preview.thumbnail} url={preview.thumbnail} /><span className="track-meta"><b><bdi>{preview.title || 'Track'}</bdi></b>{preview.artist && <small><bdi>{preview.artist}</bdi></small>}<small>Open in Spotify</small></span>
           </a></div>}
         </>}
         {mode !== 'search' && <>
@@ -303,7 +303,7 @@ export default function Home() {
       </section>}
       {step === 'editor' && <section>
         <h1 ref={heading} tabIndex={-1} className="section-title">Design your story</h1>
-        {selected && <div className="chosen-track"><AlbumArt key={selected.thumbnail} url={selected.thumbnail} /><span className="track-meta"><b dir="auto">{selected.title}</b><small dir="auto">{selected.artist}</small></span><a className="source-link" href={selected.url} target="_blank" rel="noreferrer">Deezer ↗</a></div>}
+        {selected && <div className="chosen-track"><AlbumArt key={selected.thumbnail} url={selected.thumbnail} /><span className="track-meta"><b><bdi>{selected.title}</bdi></b><small><bdi>{selected.artist}</bdi></small></span><a className="source-link" href={selected.url} target="_blank" rel="noreferrer">{selected.source} ↗</a></div>}
         <div className="preview-card" onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId);
           drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY };

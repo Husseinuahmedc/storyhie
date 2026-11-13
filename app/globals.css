@@ -28,7 +28,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible { outline:3px so
 .section-copy { color:var(--muted); line-height:1.8; font-size:16px; margin:0 0 22px; }
 .field { display:block; margin:14px 0; }
 .field span { display:block; color:var(--muted); font-size:13px; margin-bottom:7px; }
-.input,.textarea { width:100%; border:1px solid transparent; border-radius:11px; background:var(--panel); color:var(--paper); padding:14px 15px; direction:rtl; }
+.input,.textarea { width:100%; border:1px solid transparent; border-radius:11px; background:var(--panel); color:var(--paper); padding:14px 15px; text-align:start; }
 .input::placeholder,.textarea::placeholder { color:#ad97ac; }
 .url-field { direction:ltr; text-align:left; font-family:"IBM Plex Mono",monospace; }
 .form-actions { display:grid; gap:12px; margin-top:25px; }
@@ -121,7 +121,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible 
 .result:hover { background:var(--panel); }
 .album-placeholder,.provider-art { width:48px; height:48px; border-radius:4px; flex:none; }
 .album-placeholder { display:grid; place-items:center; background:var(--panel); font-size:20px; }
-.track-meta { flex:1; min-width:0; overflow-wrap:anywhere; }
+.track-meta { text-align:start; flex:1; min-width:0; overflow-wrap:anywhere; }
 .track-meta b,.track-meta small { display:block; }
 .track-meta b { font-size:14px; }
 .track-meta small { font-size:12px; color:var(--muted); }
