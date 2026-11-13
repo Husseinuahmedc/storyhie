@@ -304,32 +304,42 @@ export default function Home() {
       {step === 'editor' && <section>
         <h1 ref={heading} tabIndex={-1} className="section-title">Design your story</h1>
         {selected && <div className="chosen-track"><AlbumArt key={selected.thumbnail} url={selected.thumbnail} /><span className="track-meta"><b><bdi>{selected.title}</bdi></b><small><bdi>{selected.artist}</bdi></small></span><a className="source-link" href={selected.url} target="_blank" rel="noreferrer">{selected.source} ↗</a></div>}
+        <label className="editor-font">
+          <span>Story font</span>
+          <select className="input" value={draft.font ?? ''} onChange={(event) => setDraft({ ...draft, font: (event.target.value || undefined) as Draft['font'] })}>
+            <option value="">Auto</option>
+            {(['ar', 'en'] as const).map((language) => <optgroup key={language} label={language === 'ar' ? 'Arabic' : 'English'}>
+              {(Object.keys(writingFonts) as (keyof typeof writingFonts)[]).filter((id) => id.startsWith(language)).map((id) => <option key={id} value={id}>
+                {writingFonts[id].label} · {writingFonts[id].family}
+              </option>)}
+            </optgroup>)}
+          </select>
+        </label>
         <div className="preview-card" onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId);
           drag.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
         }} onPointerMove={pointerMove} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}>
           <Story draft={draft} artwork={selected ?? (mode === 'link' ? preview ?? undefined : undefined)} />
         </div>
-        <h2 className="template-label">Template</h2>
-        <div className="template-switcher" aria-label="Story templates">{(Object.keys(templates) as Template[]).map((id) => <button key={id} className={draft.template === id ? 'template-btn active' : 'template-btn'} aria-pressed={draft.template === id} onClick={() => setDraft({ ...draft, template: id })}><span className={'template-icon template-' + id} aria-hidden="true"><i /><b /></span>{templates[id].label}</button>)}</div>
+        <h2 className="template-label">Layout</h2>
+        <div className="template-switcher" role="group" aria-label="Story layouts">
+          {(Object.keys(templates) as Template[]).map((id) => {
+            const { label, photo: [x, y, w, h], art: [ax, ay, size], background } = templates[id];
+            return <button key={id} className={draft.template === id ? 'template-btn active' : 'template-btn'} aria-pressed={draft.template === id} onClick={() => setDraft({ ...draft, template: id })}>
+              <span className="layout-thumbnail" aria-hidden="true" style={{ background }}>
+                <i style={{ left: x / WIDTH * 100 + '%', top: y / HEIGHT * 100 + '%', width: w / WIDTH * 100 + '%', height: h / HEIGHT * 100 + '%' }} />
+                <b style={{ left: ax / WIDTH * 100 + '%', top: ay / HEIGHT * 100 + '%', width: size / WIDTH * 100 + '%' }} />
+              </span>
+              {label}
+            </button>;
+          })}
+        </div>
         <h2 className="template-label">Color</h2>
         <div className="palette-row" aria-label="Story colors">
           <button className="swatch" aria-pressed={!draft.palette} onClick={() => setDraft({ ...draft, palette: undefined })}>Auto</button>
           {(Object.keys(palettes) as (keyof typeof palettes)[]).map((id) => <button key={id} className="swatch" aria-pressed={draft.palette === id} onClick={() => setDraft({ ...draft, palette: id })}><i style={{ background: palettes[id].background }} />{palettes[id].label}</button>)}
         </div>
         <label className="field"><span>Caption (optional)</span><textarea className="textarea" dir="auto" rows={2} maxLength={80} value={draft.caption} onChange={(event) => setDraft({ ...draft, caption: event.target.value })} placeholder="Add a line to your story…" /></label>
-        <details className="cover-options">
-          <summary>Writing style</summary>
-          <p>Pick a font for your caption and song credit.</p>
-          {(['ar', 'en'] as const).map((language) => <fieldset key={language} className="font-group">
-            <legend>{language === 'ar' ? 'Arabic' : 'English'}</legend>
-            {(Object.keys(writingFonts) as (keyof typeof writingFonts)[]).filter((id) => id.startsWith(language)).map((id) => {
-              const font = writingFonts[id];
-              return <button key={id} className="font-choice" aria-pressed={draft.font === id} onClick={() => setDraft({ ...draft, font: id })}><span lang={language} dir="auto" style={{ fontFamily: font.family }}>{font.sample}</span><small>{font.label} · {font.family}</small></button>;
-            })}
-          </fieldset>)}
-          {draft.font && <button className="mini-btn" onClick={() => setDraft({ ...draft, font: undefined })}>Use automatic font</button>}
-        </details>
         <label className="control-row"><span>Zoom</span><input className="range" type="range" min="1" max="2.5" step=".01" value={draft.scale} onChange={(event) => setDraft({ ...draft, scale: Number(event.target.value) })} /></label>
         <div className="zoom-buttons"><button className="mini-btn" onClick={() => setDraft({ ...draft, scale: 1, x: 0, y: 0 })}>Reset crop</button><FilePicker label="Replace photo" disabled={busy} onImage={(file) => void pick(file, 'image')} /></div>
         {<details className="cover-options">

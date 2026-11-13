@@ -21,7 +21,7 @@ The product connects a specific photo and a song through a short English-languag
 Mobile-first browser use, with the user’s photo and draft staying in the browser during the editing session. Spotify is an optional link preview.
 
 ## Capabilities and Constraints
-Manual song entry must always work. Six templates, bilingual font choices, color palettes, crop positioning, captions, URL validation, and 1080 × 1920 PNG export are required. Only the search term or a validated Spotify track URL reaches a catalog endpoint.
+Manual song entry must always work. Nine layouts, bilingual font choices, color palettes, crop positioning, captions, URL validation, and 1080 × 1920 PNG export are required. Only the search term or a validated Spotify track URL reaches a catalog endpoint.
 
 ## Brand Commitments
 Sitehie typography, warm paper surfaces, dark ink, green accents, and the viewfinder music mark. Story text supports Arabic and English.

@@ -1,11 +1,14 @@
 import { palettes, writingFonts } from './styles';
 
-export type Template = 'cinematic' | 'polaroid' | 'cover' | 'vinyl' | 'postcard' | 'wide';
+export type Template = keyof typeof templates;
 export type Draft = { image?: string; title: string; artist: string; cover?: string; caption: string; template: Template; font?: keyof typeof writingFonts; palette?: keyof typeof palettes; scale: number; x: number; y: number };
 export const WIDTH = 1080;
 export const HEIGHT = 1920;
 
 export const templates = {
+  editorial: { label: 'Editorial', photo: [72, 540, 936, 1030], art: [818, 233, 190], dark: false, background: '#EDE3D3' },
+  ticket: { label: 'Ticket stub', photo: [86, 170, 908, 990], art: [134, 1290, 182], dark: true, background: '#25372F' },
+  sleeve: { label: 'Record sleeve', photo: [96, 242, 888, 888], art: [400, 1180, 280], dark: true, background: '#27232F' },
   cinematic: { label: 'Cinematic', photo: [0, 0, 1080, 1920], art: [792, 1380, 164], dark: true, background: '#211827' },
   polaroid: { label: 'Polaroid', photo: [76, 124, 928, 1192], art: [792, 1400, 164], dark: false, background: '#FFF1E6' },
   cover: { label: 'Cover tone', photo: [80, 140, 920, 1120], art: [792, 1400, 164], dark: false, background: '#D2B8FF' },
@@ -26,11 +29,11 @@ export async function decodeImage(src: string) {
   return image;
 }
 
-function drawText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, width: number, size: number, weight: number, maxLines: number, family: string) {
+function drawText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, width: number, size: number, weight: number, maxLines: number, family: string, align: CanvasTextAlign = 'right') {
   const value = text.trim();
   if (!value) return;
   ctx.direction = /^[^\p{L}]*\p{Script=Arabic}/u.test(value) ? 'rtl' : 'ltr';
-  ctx.textAlign = 'right';
+  ctx.textAlign = align;
   let lines: string[] = [];
   for (; size >= 24; size -= 2) {
     ctx.font = weight + ' ' + size + 'px ' + family;
@@ -51,15 +54,21 @@ function drawText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 }
 
 export async function renderStory(canvas: HTMLCanvasElement, draft: Draft, hideArtwork = false) {
-  const isArabic = /\p{Script=Arabic}/u.test(draft.caption || draft.title);
-  const choice = writingFonts[draft.font ?? (isArabic ? 'ar-formal' : 'en-formal')];
-  const family = '"' + choice.family + '", "Noto Sans Arabic", Arial';
-  const glyphs = [draft.title, draft.artist, draft.caption].join(' ');
+  const mood = draft.font?.split('-')[1] as 'formal' | 'hand' | 'vintage' | undefined;
+  const fontFor = (text: string) => {
+    const language = /^[^\p{L}]*\p{Script=Arabic}/u.test(text) ? 'ar' : 'en';
+    const font = writingFonts[`${language}-${mood ?? 'formal'}`];
+    return '"' + font.family + '", "Noto Sans Arabic", Arial';
+  };
+  const titleFont = fontFor(draft.title);
+  const artistFont = fontFor(draft.artist);
+  const captionFont = fontFor(draft.caption);
   const [photo, cover] = await Promise.all([
     decodeImage(draft.image ?? '/assets/sample.webp'),
     draft.cover ? decodeImage(draft.cover) : null,
-    document.fonts.load('700 56px ' + family, glyphs),
-    document.fonts.load('400 40px ' + family, glyphs),
+    document.fonts.load('700 56px ' + titleFont, draft.title),
+    document.fonts.load('400 40px ' + artistFont, draft.artist),
+    document.fonts.load('700 46px ' + captionFont, draft.caption),
   ]);
   canvas.width = WIDTH;
   canvas.height = HEIGHT;
@@ -107,6 +116,33 @@ export async function renderStory(canvas: HTMLCanvasElement, draft: Draft, hideA
     ctx.fillRect(0, 870, WIDTH, HEIGHT - 870);
   }
   const [artX, artY, artSize] = layout.art;
+  const ink = palette?.ink ?? (layout.dark ? '#FFF1E6' : '#211827');
+  const muted = palette?.muted ?? (layout.dark ? '#DDC8D6' : '#52596A');
+  const editorial = draft.template === 'editorial';
+  const ticket = draft.template === 'ticket';
+  const sleeve = draft.template === 'sleeve';
+
+  if (editorial || ticket || sleeve) {
+    ctx.save();
+    ctx.strokeStyle = muted;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    if (ticket) {
+      ctx.roundRect(86, 1206, 908, 389, 26);
+      ctx.moveTo(86, 1524);
+      ctx.lineTo(994, 1524);
+      ctx.setLineDash([14, 12]);
+    } else if (editorial) {
+      ctx.moveTo(72, 186);
+      ctx.lineTo(1008, 186);
+      ctx.moveTo(72, 479);
+      ctx.lineTo(1008, 479);
+    } else {
+      ctx.rect(77, 223, 926, 926);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
   if (cinematic) {
     ctx.fillStyle = background;
     ctx.beginPath();
@@ -135,13 +171,16 @@ export async function renderStory(canvas: HTMLCanvasElement, draft: Draft, hideA
 
   const vinyl = draft.template === 'vinyl';
   const wide = draft.template === 'wide';
-  const x = vinyl || wide ? 972 : artX - 32;
-  const width = vinyl ? 864 : wide ? 640 : x - 106;
-  const y = vinyl ? 1430 : artY + 48;
-  ctx.fillStyle = palette?.ink ?? (layout.dark ? '#FFF1E6' : '#211827');
-  drawText(ctx, draft.title, x, y, width, 54, 700, 2, family);
-  ctx.fillStyle = palette?.muted ?? (layout.dark ? '#DDC8D6' : '#52596A');
-  drawText(ctx, draft.artist, x, y + 124, width, 36, 400, 2, family);
-  ctx.fillStyle = palette?.ink ?? (layout.dark ? '#FFF1E6' : '#211827');
-  drawText(ctx, draft.caption, 980, 1715, 880, 46, 700, 2, family);
+  const x = sleeve ? 540 : editorial ? 72 : ticket ? 358 : vinyl || wide ? 972 : artX - 32;
+  const width = sleeve || vinyl ? 864 : editorial ? 710 : ticket ? 584 : wide ? 640 : x - 106;
+  const y = sleeve ? 1535 : ticket ? 1354 : vinyl ? 1430 : artY + 48;
+  const align = sleeve ? 'center' : editorial || ticket ? 'left' : 'right';
+  const titleSize = editorial ? 68 : 54;
+  const artistOffset = editorial ? 154 : 124;
+  ctx.fillStyle = ink;
+  drawText(ctx, draft.title, x, y, width, titleSize, 700, 2, titleFont, align);
+  ctx.fillStyle = muted;
+  drawText(ctx, draft.artist, x, y + artistOffset, width, 36, 400, ticket || sleeve ? 1 : 2, artistFont, align);
+  ctx.fillStyle = ink;
+  drawText(ctx, draft.caption, sleeve ? 540 : editorial ? 72 : 980, sleeve ? 1740 : 1715, 880, 46, 700, 2, captionFont, sleeve ? 'center' : editorial ? 'left' : 'right');
 }

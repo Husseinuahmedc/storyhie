@@ -1,6 +1,6 @@
 # StoryHIE
 
-Turn a photo and a song into a 1080 × 1920 Instagram Story PNG. Search Deezer and Apple Music by song or artist, or enter the details manually. The editor offers six templates, four color palettes plus Auto, and three Arabic and three English writing fonts.
+Turn a photo and a song into a 1080 × 1920 Instagram Story PNG. Search Deezer and Apple Music by song or artist, or enter the details manually. The editor offers nine layouts, four color palettes plus Auto, and three Arabic and three English writing fonts.
 
 ## Run locally
 
