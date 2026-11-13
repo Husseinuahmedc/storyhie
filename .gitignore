@@ -1,4 +1,10 @@
 node_modules/
 .next/
+out/
 .env*
+*.log
 *.tsbuildinfo
+.DS_Store
+graphify-out/
+
+next-env.d.ts
