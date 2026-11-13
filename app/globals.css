@@ -152,3 +152,33 @@ button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible 
 .template-wide i { top:10px; bottom:10px; inset-inline:0; }
 .template-cover i { inset-inline:5px; bottom:15px; }
 .export-note { text-align:center; color:var(--muted); font-size:13px; margin:12px 0; }
+
+body { font-family: Inter, "Noto Sans Arabic", sans-serif; }
+.hero h1,.section-title,.brand-row { font-family: "Space Grotesk", "Noto Sans Arabic", sans-serif; }
+.hero h1 { font-size:clamp(42px,10vw,66px); line-height:.98; letter-spacing:-.055em; }
+.brand-row { gap:6px; }
+.section-title { font-size:clamp(28px,7vw,42px); letter-spacing:-.035em; }
+.section-copy { max-width:40ch; }
+.track-modes { gap:16px; }
+.live-search { position:relative; }
+.live-search .input { min-height:52px; padding-inline:14px; }
+.live-search .mini-btn { min-height:44px; align-self:center; }
+.template-switcher { display:flex; overflow-x:auto; gap:8px; padding:3px 3px 9px; margin-inline:-3px; scroll-snap-type:x proximity; }
+.template-btn { flex:0 0 93px; min-height:77px; scroll-snap-align:start; }
+.palette-row { display:flex; flex-wrap:wrap; gap:6px; }
+.swatch { display:inline-flex; align-items:center; gap:6px; padding:8px; min-height:44px; border:1px solid var(--border); border-radius:5px; font-size:12px; }
+.swatch[aria-pressed=true],.font-choice[aria-pressed=true] { border-color:var(--focus); background:var(--signal); }
+.swatch i { display:block; border:1px solid #171c2940; width:15px; height:15px; border-radius:50%; }
+.font-group { display:grid; gap:6px; margin-block:12px; }
+.font-group legend { font-size:13px; color:var(--muted); }
+.font-choice { display:flex; justify-content:space-between; align-items:center; gap:8px; min-height:48px; padding:8px; border:1px solid var(--border); border-radius:5px; text-align:start; }
+.font-choice span { font-size:20px; }
+.font-choice small { color:var(--muted); font-size:11px; text-align:end; }
+@media (min-width:800px) {
+  .phone-frame:has(.hero) { width:min(100%,980px); }
+  .page-content:has(.hero) { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,340px); grid-template-rows:auto auto; align-content:center; gap:0 54px; }
+  .hero { align-self:end; margin-block:0 22px; }
+  .sample-wrap { grid-column:2; grid-row:1 / span 2; width:min(100%,265px); }
+  .bottom-action { grid-column:1; align-self:start; margin:0; padding:0; }
+  .bottom-action button { width:auto; }
+}

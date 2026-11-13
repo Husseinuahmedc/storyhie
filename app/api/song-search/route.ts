@@ -10,7 +10,7 @@ type CatalogTrack = {
 export async function GET(request: Request) {
   const query = new URL(request.url).searchParams.get('q')?.trim() ?? '';
   if (query.length < 2 || query.length > 100) {
-    return NextResponse.json({ error: 'اكتب حرفين على الأقل للبحث.' }, { status: 400 });
+    return NextResponse.json({ error: 'Enter at least two characters.' }, { status: 400 });
   }
 
   const endpoint = new URL('https://api.deezer.com/search');
@@ -38,6 +38,6 @@ export async function GET(request: Request) {
     }
     return NextResponse.json({ tracks }, { headers: { 'Cache-Control': 'public, s-maxage=120, stale-while-revalidate=60' } });
   } catch {
-    return NextResponse.json({ error: 'البحث متعذّر هسّه. جرّب مرّة ثانية أو اكتب معلومات الأغنية يدويًا.' }, { status: 502 });
+    return NextResponse.json({ error: 'Could not reach the music catalog. Try again or enter the song manually.' }, { status: 502 });
   }
 }

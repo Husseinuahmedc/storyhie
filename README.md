@@ -1,21 +1,21 @@
-# أغنية لهاللقطة
+# StoryHIE
 
-تطبيق ويب عربي يحوّل صورة وأغنية إلى ستوري إنستغرام. اختار صورتك، اكتب اسم الأغنية والفنان، جرّب أحد القوالب الستة، ونزّل الصورة بصيغة PNG بحجم 1080 × 1920.
+Turn a photo and a song into a 1080 × 1920 Instagram Story PNG. Search Deezer by song or artist, or enter the details manually. The editor offers six templates, four color palettes plus Auto, and three Arabic and three English writing fonts.
 
-## التشغيل
+## Run locally
 
-يتطلب Node.js 20.9 أو أحدث.
+Use Node.js 20.9 or later.
 
 ```bash
 npm ci
 npm run dev
 ```
 
-افتح http://localhost:3000.
+Open http://localhost:3000.
 
-المحرّر يعمل بدون حساب أو قاعدة بيانات. تبقى الصور والمسودة داخل المتصفح. يرسل التطبيق نص البحث إلى كتالوج الأغاني، أو رابط الأغنية عند طلب معاينة Spotify. غلاف المعاينة يبقى داخل المحرّر، والتصدير يستخدم بطاقة المشروع أو صورة تختارها. بعد رفع الستوري تگدر تضيف صوت الأغنية من Instagram Music أو رابطها من Link.
+Photos and drafts stay in the browser. Song search sends the query to Deezer. The optional Spotify preview sends a validated track URL and depends on oEmbed availability. Catalog artwork appears in search and the editor preview. Add your own artwork to include a cover in the PNG. You can attach audio after uploading the story in Instagram.
 
-## التحقق
+## Checks
 
 ```bash
 npm run lint
@@ -23,8 +23,4 @@ npm run typecheck
 npm run build
 ```
 
-معاينة Spotify تعتمد على توفر oEmbed. تگدر تكمل بالإدخال اليدوي إذا تعذّرت المعاينة. دعم HEIC يعتمد على المتصفح.
-
-[ملف التصميم في Figma](https://www.figma.com/design/u1b4aMPp5ozmQE5dFYjDoJ)
-
-البحث بالاسم أو الفنان يستخدم كتالوج Deezer. الغلاف الخارجي يظهر ضمن نتائج البحث وداخل معاينة القالب في المحرّر، والتصدير يستخدم بطاقة المشروع أو غلافًا تملكه.
+[Original design in Figma](https://www.figma.com/design/u1b4aMPp5ozmQE5dFYjDoJ)

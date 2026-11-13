@@ -5,7 +5,7 @@ export async function POST(request: Request) {
   let url: string | null;
   try { url = canonicalTrack((await request.json())?.url); }
   catch { url = null; }
-  if (!url) return NextResponse.json({ error: 'الصق رابط أغنية مباشر من Spotify.' }, { status: 400 });
+  if (!url) return NextResponse.json({ error: 'Paste a direct Spotify track link.' }, { status: 400 });
 
   const endpoint = new URL('https://open.spotify.com/oembed');
   endpoint.searchParams.set('url', url);
@@ -24,6 +24,6 @@ export async function POST(request: Request) {
       ? data.thumbnail_url : null;
     return NextResponse.json({ url, title, artist, thumbnail });
   } catch {
-    return NextResponse.json({ error: 'تعذّر الاتصال بـ Spotify. تگدر تكمل بالإدخال اليدوي.' }, { status: 502 });
+    return NextResponse.json({ error: 'Could not reach the music catalog. Try again or enter the song manually.' }, { status: 502 });
   }
 }

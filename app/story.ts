@@ -1,15 +1,17 @@
+import { palettes, writingFonts } from './styles';
+
 export type Template = 'cinematic' | 'polaroid' | 'cover' | 'vinyl' | 'postcard' | 'wide';
-export type Draft = { image?: string; title: string; artist: string; cover?: string; caption: string; template: Template; scale: number; x: number; y: number };
+export type Draft = { image?: string; title: string; artist: string; cover?: string; caption: string; template: Template; font?: keyof typeof writingFonts; palette?: keyof typeof palettes; scale: number; x: number; y: number };
 export const WIDTH = 1080;
 export const HEIGHT = 1920;
 
 export const templates = {
-  cinematic: { label: 'سينمائي', photo: [0, 0, 1080, 1920], art: [792, 1380, 164], dark: true, background: '#211827' },
-  polaroid: { label: 'بولارويد', photo: [76, 124, 928, 1192], art: [792, 1400, 164], dark: false, background: '#FFF1E6' },
-  cover: { label: 'لون من الغلاف', photo: [80, 140, 920, 1120], art: [792, 1400, 164], dark: false, background: '#D2B8FF' },
-  vinyl: { label: 'أسطوانة', photo: [80, 145, 920, 870], art: [390, 1060, 300], dark: true, background: '#171C29' },
-  postcard: { label: 'بطاقة بريدية', photo: [104, 510, 872, 1050], art: [782, 242, 176], dark: false, background: '#F4F2E9' },
-  wide: { label: 'لقطة عريضة', photo: [0, 585, 1080, 730], art: [110, 1395, 184], dark: true, background: '#26382C' },
+  cinematic: { label: 'Cinematic', photo: [0, 0, 1080, 1920], art: [792, 1380, 164], dark: true, background: '#211827' },
+  polaroid: { label: 'Polaroid', photo: [76, 124, 928, 1192], art: [792, 1400, 164], dark: false, background: '#FFF1E6' },
+  cover: { label: 'Cover tone', photo: [80, 140, 920, 1120], art: [792, 1400, 164], dark: false, background: '#D2B8FF' },
+  vinyl: { label: 'Vinyl', photo: [80, 145, 920, 870], art: [390, 1060, 300], dark: true, background: '#171C29' },
+  postcard: { label: 'Postcard', photo: [104, 510, 872, 1050], art: [782, 242, 176], dark: false, background: '#F4F2E9' },
+  wide: { label: 'Widescreen', photo: [0, 585, 1080, 730], art: [110, 1395, 184], dark: true, background: '#26382C' },
 } as const;
 
 export function photoSlot(template: Template) {
@@ -24,14 +26,14 @@ export async function decodeImage(src: string) {
   return image;
 }
 
-function drawText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, width: number, size: number, weight: number, maxLines: number) {
+function drawText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, width: number, size: number, weight: number, maxLines: number, family: string) {
   const value = text.trim();
   if (!value) return;
   ctx.direction = /^[^\p{L}]*\p{Script=Arabic}/u.test(value) ? 'rtl' : 'ltr';
   ctx.textAlign = 'right';
   let lines: string[] = [];
   for (; size >= 24; size -= 2) {
-    ctx.font = weight + ' ' + size + 'px "Noto Sans Arabic", Arial';
+    ctx.font = weight + ' ' + size + 'px ' + family;
     lines = [];
     let line = '';
     for (const word of value.split(/\s+/)) {
@@ -49,16 +51,20 @@ function drawText(ctx: CanvasRenderingContext2D, text: string, x: number, y: num
 }
 
 export async function renderStory(canvas: HTMLCanvasElement, draft: Draft, hideArtwork = false) {
+  const isArabic = /\p{Script=Arabic}/u.test(draft.caption || draft.title);
+  const choice = writingFonts[draft.font ?? (isArabic ? 'ar-formal' : 'en-formal')];
+  const family = '"' + choice.family + '", "Noto Sans Arabic", Arial';
+  const glyphs = [draft.title, draft.artist, draft.caption].join(' ');
   const [photo, cover] = await Promise.all([
     decodeImage(draft.image ?? '/assets/sample.webp'),
     draft.cover ? decodeImage(draft.cover) : null,
-    document.fonts.load('700 56px "Noto Sans Arabic"', 'أغنية'),
-    document.fonts.load('400 40px "Noto Sans Arabic"', 'أغنية'),
+    document.fonts.load('700 56px ' + family, glyphs),
+    document.fonts.load('400 40px ' + family, glyphs),
   ]);
   canvas.width = WIDTH;
   canvas.height = HEIGHT;
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('تعذّر تجهيز الصورة.');
+  if (!ctx) throw new Error('Could not prepare the image.');
   const layout = templates[draft.template];
   let background: string = layout.background;
   if (draft.template === 'cover') {
@@ -74,6 +80,8 @@ export async function renderStory(canvas: HTMLCanvasElement, draft: Draft, hideA
       }
     }
   }
+  const palette = draft.palette ? palettes[draft.palette] : undefined;
+  if (palette) background = palette.background;
   ctx.fillStyle = background;
   ctx.fillRect(0, 0, WIDTH, HEIGHT);
   const slot = photoSlot(draft.template);
@@ -93,14 +101,14 @@ export async function renderStory(canvas: HTMLCanvasElement, draft: Draft, hideA
   const cinematic = draft.template === 'cinematic';
   if (cinematic) {
     const gradient = ctx.createLinearGradient(0, 870, 0, HEIGHT);
-    gradient.addColorStop(0, '#21182700');
-    gradient.addColorStop(1, '#211827');
+    gradient.addColorStop(0, background + '00');
+    gradient.addColorStop(1, background);
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 870, WIDTH, HEIGHT - 870);
   }
   const [artX, artY, artSize] = layout.art;
   if (cinematic) {
-    ctx.fillStyle = '#211827';
+    ctx.fillStyle = background;
     ctx.beginPath();
     ctx.roundRect(72, artY - 26, 936, 260, 32);
     ctx.fill();
@@ -130,10 +138,10 @@ export async function renderStory(canvas: HTMLCanvasElement, draft: Draft, hideA
   const x = vinyl || wide ? 972 : artX - 32;
   const width = vinyl ? 864 : wide ? 640 : x - 106;
   const y = vinyl ? 1430 : artY + 48;
-  ctx.fillStyle = layout.dark ? '#FFF1E6' : '#211827';
-  drawText(ctx, draft.title, x, y, width, 54, 700, 2);
-  ctx.fillStyle = layout.dark ? '#DDC8D6' : '#52596A';
-  drawText(ctx, draft.artist, x, y + 124, width, 36, 400, 2);
-  ctx.fillStyle = layout.dark ? '#FFF1E6' : '#211827';
-  drawText(ctx, draft.caption, 980, 1715, 880, 46, 700, 2);
+  ctx.fillStyle = palette?.ink ?? (layout.dark ? '#FFF1E6' : '#211827');
+  drawText(ctx, draft.title, x, y, width, 54, 700, 2, family);
+  ctx.fillStyle = palette?.muted ?? (layout.dark ? '#DDC8D6' : '#52596A');
+  drawText(ctx, draft.artist, x, y + 124, width, 36, 400, 2, family);
+  ctx.fillStyle = palette?.ink ?? (layout.dark ? '#FFF1E6' : '#211827');
+  drawText(ctx, draft.caption, 980, 1715, 880, 46, 700, 2, family);
 }
